@@ -74,6 +74,22 @@ Secrets are stored **encrypted at rest** in a single file. The exact encryption 
 - Re-encrypt the full content back to disk after modifications.
 - Avoid leaving decrypted content on disk.
 
+## Running this implementation
+
+This Rust implementation uses AES-256-GCM with a key derived from your password (PBKDF2-HMAC-SHA256).
+
+- Provide the password via `--password <...>` or `SECRETS_MANAGER_PASSWORD`.
+- Choose the encrypted file via `--file <path>` or `SECRETS_MANAGER_FILE` (defaults to `./secrets.enc`).
+
+Examples:
+
+```bash
+export SECRETS_MANAGER_PASSWORD='correct horse battery staple'
+
+cargo run -- add db_password s3cr3t
+cargo run -- get db_password
+```
+
 ## Error handling (expected)
 
 - `get <key>` returns a non-zero exit code if the key is not found.
