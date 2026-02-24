@@ -1,0 +1,27 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Cargo
+# Lockfile policy:
+# - Keep Cargo.lock for binaries (this repo builds a CLI): commit it.
+# - Ignore Cargo.lock only for libraries.
+# /Cargo.lock
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# IntelliJ / CLion
+.idea/
+
+# VS Code
+.vscode/
+
+# direnv
+.direnv/
+.envrc
+
+# Optional: local secret file defaults
+# (the tool defaults to ./secrets.enc)
+secrets.enc
