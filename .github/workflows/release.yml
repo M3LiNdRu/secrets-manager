@@ -25,6 +25,12 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb --locked
+
       - name: Configure git user
         run: |
           git config user.name "github-actions[bot]"
@@ -37,6 +43,7 @@ jobs:
             @semantic-release/commit-analyzer \
             @semantic-release/release-notes-generator \
             @semantic-release/changelog \
+            @semantic-release/exec \
             @semantic-release/git \
             @semantic-release/github \
             conventional-changelog-conventionalcommits
