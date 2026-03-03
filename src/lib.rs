@@ -57,14 +57,59 @@ fn validate_key_value(key: &str, value: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::Context;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
     use tempfile::tempdir;
+
+    fn setup_test_gpg_home() -> (tempfile::TempDir, String) {
+        let home = tempdir().unwrap();
+
+        #[cfg(unix)]
+        {
+            let perms = std::fs::Permissions::from_mode(0o700);
+            std::fs::set_permissions(home.path(), perms).unwrap();
+        }
+
+        let email = format!("test-{}@example.com", std::process::id());
+        let user_id = format!("Test User <{email}>");
+
+        let status = Command::new("gpg")
+            .arg("--homedir")
+            .arg(home.path())
+            .arg("--batch")
+            .arg("--yes")
+            .arg("--quiet")
+            .arg("--no-tty")
+            .arg("--pinentry-mode")
+            .arg("loopback")
+            .arg("--passphrase")
+            .arg("")
+            .arg("--quick-generate-key")
+            .arg(&user_id)
+            .arg("default")
+            .arg("default")
+            .arg("never")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .context("generate test gpg key")
+            .unwrap();
+
+        assert!(status.success(), "failed to generate test gpg key");
+        (home, email)
+    }
 
     #[test]
     fn add_then_get_returns_value() {
+        let (gpg_home, recipient) = setup_test_gpg_home();
         let dir = tempdir().unwrap();
         let path = dir.path().join("secrets.txt");
 
-        let store = FileSecretsStore::new(path, "test-password".to_string());
+        let store = FileSecretsStore::new(path)
+            .with_gnupghome(gpg_home.path().to_path_buf())
+            .with_recipient(recipient);
         let manager = SecretsManager::new(store);
 
         manager.add("db_password", "s3cr3t").unwrap();
@@ -74,10 +119,13 @@ mod tests {
 
     #[test]
     fn add_updates_existing_key() {
+        let (gpg_home, recipient) = setup_test_gpg_home();
         let dir = tempdir().unwrap();
         let path = dir.path().join("secrets.txt");
 
-        let store = FileSecretsStore::new(path, "test-password".to_string());
+        let store = FileSecretsStore::new(path)
+            .with_gnupghome(gpg_home.path().to_path_buf())
+            .with_recipient(recipient);
         let manager = SecretsManager::new(store);
 
         manager.add("api_key", "abc123").unwrap();

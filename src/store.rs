@@ -1,6 +1,6 @@
 use crate::crypto::{decrypt_text, encrypt_text};
 use crate::Secrets;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
 
 pub trait SecretsStore: Clone {
@@ -11,12 +11,27 @@ pub trait SecretsStore: Clone {
 #[derive(Clone)]
 pub struct FileSecretsStore {
     path: PathBuf,
-    password: String,
+    recipient: Option<String>,
+    gnupghome: Option<PathBuf>,
 }
 
 impl FileSecretsStore {
-    pub fn new(path: PathBuf, password: String) -> Self {
-        Self { path, password }
+    pub fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            recipient: None,
+            gnupghome: None,
+        }
+    }
+
+    pub fn with_recipient(mut self, recipient: impl Into<String>) -> Self {
+        self.recipient = Some(recipient.into());
+        self
+    }
+
+    pub fn with_gnupghome(mut self, gnupghome: PathBuf) -> Self {
+        self.gnupghome = Some(gnupghome);
+        self
     }
 
     fn read_encrypted(&self) -> Result<Option<String>> {
@@ -48,12 +63,17 @@ impl SecretsStore for FileSecretsStore {
             return Ok(Secrets::default());
         };
 
-        let plaintext = decrypt_text(enc_text.trim(), &self.password).context("decrypt")?;
+        let plaintext =
+            decrypt_text(enc_text.as_str(), self.gnupghome.as_deref()).context("decrypt")?;
         let lines = plaintext.lines().map(|s| s.to_string()).collect::<Vec<_>>();
         Secrets::from_lines(lines).context("parse decrypted records")
     }
 
     fn save(&self, secrets: &Secrets) -> Result<()> {
+        let Some(recipient) = self.recipient.as_deref() else {
+            bail!("missing GPG recipient (needed to encrypt on save)");
+        };
+
         let mut plaintext = String::new();
         for (idx, line) in secrets.to_lines().into_iter().enumerate() {
             if idx > 0 {
@@ -62,7 +82,8 @@ impl SecretsStore for FileSecretsStore {
             plaintext.push_str(&line);
         }
 
-        let enc_text = encrypt_text(&plaintext, &self.password).context("encrypt")?;
+        let enc_text =
+            encrypt_text(&plaintext, recipient, self.gnupghome.as_deref()).context("encrypt")?;
         self.write_encrypted(&enc_text)
     }
 }

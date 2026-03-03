@@ -76,15 +76,18 @@ Secrets are stored **encrypted at rest** in a single file. The exact encryption 
 
 ## Running this implementation
 
-This Rust implementation uses AES-256-GCM with a key derived from your password (PBKDF2-HMAC-SHA256).
+This Rust implementation uses your local `gpg` keyring:
 
-- Provide the password via `--password <...>` or `SECRETS_MANAGER_PASSWORD`.
+- Provide the recipient (key id / fingerprint / email) via `--recipient <...>` or `SECRETS_MANAGER_GPG_RECIPIENT`.
+	- Required for `add` (so the file can be encrypted on save).
+	- Not required for `get`.
 - Choose the encrypted file via `--file <path>` or `SECRETS_MANAGER_FILE` (defaults to `./secrets.enc`).
+- Optionally set `--gnupghome <path>` (or `SECRETS_MANAGER_GNUPGHOME` / `GNUPGHOME`) to use a non-default keyring.
 
 Examples:
 
 ```bash
-export SECRETS_MANAGER_PASSWORD='correct horse battery staple'
+export SECRETS_MANAGER_GPG_RECIPIENT='you@example.com'
 
 cargo run -- add db_password s3cr3t
 cargo run -- get db_password

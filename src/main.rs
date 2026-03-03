@@ -14,9 +14,15 @@ struct Cli {
     #[arg(long)]
     file: Option<std::path::PathBuf>,
 
-    /// Password used to encrypt/decrypt (defaults to $SECRETS_MANAGER_PASSWORD)
+    /// GPG recipient (key id / fingerprint / email). Defaults to $SECRETS_MANAGER_GPG_RECIPIENT.
+    ///
+    /// Required for `add` (encryption on save). Not required for `get`.
     #[arg(long)]
-    password: Option<String>,
+    recipient: Option<String>,
+
+    /// Optional GnuPG home directory to use (defaults to $SECRETS_MANAGER_GNUPGHOME or $GNUPGHOME)
+    #[arg(long)]
+    gnupghome: Option<std::path::PathBuf>,
 
     #[command(subcommand)]
     command: Command,
@@ -49,28 +55,47 @@ fn run() -> Result<i32> {
         .or_else(|| std::env::var_os("SECRETS_MANAGER_FILE").map(std::path::PathBuf::from))
         .unwrap_or_else(|| std::path::PathBuf::from("secrets.enc"));
 
-    let password = match cli
-        .password
-        .or_else(|| std::env::var("SECRETS_MANAGER_PASSWORD").ok())
-    {
-        Some(p) if !p.is_empty() => p,
-        _ => bail!("missing password; provide --password or set SECRETS_MANAGER_PASSWORD"),
-    };
+    let recipient = cli
+        .recipient
+        .or_else(|| std::env::var("SECRETS_MANAGER_GPG_RECIPIENT").ok());
 
-    let store = FileSecretsStore::new(file, password);
-    let manager = SecretsManager::new(store);
+    let gnupghome = cli.gnupghome.or_else(|| {
+        std::env::var_os("SECRETS_MANAGER_GNUPGHOME")
+            .or_else(|| std::env::var_os("GNUPGHOME"))
+            .map(std::path::PathBuf::from)
+    });
 
     match cli.command {
         Command::Add { key, value } => {
+            let Some(recipient) = recipient else {
+                bail!(
+                    "missing GPG recipient; provide --recipient or set SECRETS_MANAGER_GPG_RECIPIENT"
+                );
+            };
+
+            let mut store = FileSecretsStore::new(file);
+            if let Some(home) = gnupghome {
+                store = store.with_gnupghome(home);
+            }
+            let store = store.with_recipient(recipient);
+            let manager = SecretsManager::new(store);
             manager.add(&key, &value)?;
             Ok(0)
         }
-        Command::Get { key } => match manager.get(&key)? {
-            Some(value) => {
-                println!("{value}");
-                Ok(0)
+        Command::Get { key } => {
+            let mut store = FileSecretsStore::new(file);
+            if let Some(home) = gnupghome {
+                store = store.with_gnupghome(home);
             }
-            None => Ok(1),
-        },
+            let manager = SecretsManager::new(store);
+
+            match manager.get(&key)? {
+                Some(value) => {
+                    println!("{value}");
+                    Ok(0)
+                }
+                None => Ok(1),
+            }
+        }
     }
 }

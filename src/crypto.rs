@@ -1,90 +1,69 @@
-use aes_gcm::aead::{Aead, KeyInit, OsRng};
-use aes_gcm::{Aes256Gcm, Nonce};
 use anyhow::{bail, Context, Result};
-use base64::Engine;
-use pbkdf2::pbkdf2_hmac;
-use rand::RngCore;
-use sha2::Sha256;
-use zeroize::Zeroize;
+use std::io::Write;
+use std::path::Path;
+use std::process::{Command, Stdio};
 
-const MAGIC: &str = "SM1";
-const PBKDF2_ITERS: u32 = 100_000;
-const SALT_LEN: usize = 16;
-const NONCE_LEN: usize = 12;
+fn run_gpg(input: &[u8], args: &[&str], homedir: Option<&Path>) -> Result<Vec<u8>> {
+    let mut cmd = Command::new("gpg");
+    cmd.args(["--batch", "--yes", "--no-tty", "--pinentry-mode", "loopback"]);
 
-/// Encrypt plaintext into a single-line, text-safe record:
-/// `SM1:<b64(salt)>:<b64(nonce)>:<b64(ciphertext)>`
-pub fn encrypt_text(plaintext: &str, password: &str) -> Result<String> {
-    if password.is_empty() {
-        bail!("password must not be empty");
+    if let Some(home) = homedir {
+        cmd.arg("--homedir").arg(home);
     }
 
-    let mut salt = [0u8; SALT_LEN];
-    OsRng.fill_bytes(&mut salt);
+    cmd.args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
-    let mut key_bytes = [0u8; 32];
-    pbkdf2_hmac::<Sha256>(password.as_bytes(), &salt, PBKDF2_ITERS, &mut key_bytes);
+    let mut child = cmd.spawn().context("spawn gpg")?;
 
-    let cipher = Aes256Gcm::new_from_slice(&key_bytes).context("init cipher")?;
+    {
+        let stdin = child.stdin.as_mut().context("open gpg stdin")?;
+        stdin.write_all(input).context("write gpg stdin")?;
+    }
 
-    let mut nonce_bytes = [0u8; NONCE_LEN];
-    OsRng.fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    let output = child.wait_with_output().context("wait for gpg")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr = stderr.trim();
+        if stderr.is_empty() {
+            bail!("gpg failed with exit status: {}", output.status);
+        }
+        bail!("gpg failed: {stderr}");
+    }
 
-    let ciphertext = cipher
-        .encrypt(nonce, plaintext.as_bytes())
-        .map_err(|_| anyhow::anyhow!("encrypt failed"))?;
-
-    let b64 = base64::engine::general_purpose::STANDARD_NO_PAD;
-    let out = format!(
-        "{}:{}:{}:{}",
-        MAGIC,
-        b64.encode(salt),
-        b64.encode(nonce_bytes),
-        b64.encode(ciphertext)
-    );
-
-    key_bytes.zeroize();
-    Ok(out)
+    Ok(output.stdout)
 }
 
-pub fn decrypt_text(enc_record: &str, password: &str) -> Result<String> {
-    if password.is_empty() {
-        bail!("password must not be empty");
+/// Encrypt plaintext using the given GPG recipient (public key).
+///
+/// Output is an ASCII-armored PGP message (text-safe for a single file).
+pub fn encrypt_text(plaintext: &str, recipient: &str, homedir: Option<&Path>) -> Result<String> {
+    let recipient = recipient.trim();
+    if recipient.is_empty() {
+        bail!("missing GPG recipient");
     }
 
-    let parts: Vec<&str> = enc_record.split(':').collect();
-    if parts.len() != 4 {
-        bail!("invalid encrypted file format");
-    }
-    if parts[0] != MAGIC {
-        bail!("invalid magic header");
-    }
+    let out = run_gpg(
+        plaintext.as_bytes(),
+        &[
+            "--armor",
+            "--trust-model",
+            "always",
+            "--encrypt",
+            "--recipient",
+            recipient,
+        ],
+        homedir,
+    )
+    .context("gpg encrypt")?;
 
-    let b64 = base64::engine::general_purpose::STANDARD_NO_PAD;
-    let salt = b64.decode(parts[1]).context("decode salt")?;
-    let nonce_bytes = b64.decode(parts[2]).context("decode nonce")?;
-    let ciphertext = b64.decode(parts[3]).context("decode ciphertext")?;
+    String::from_utf8(out).context("gpg output is not UTF-8")
+}
 
-    if salt.len() != SALT_LEN {
-        bail!("invalid salt length");
-    }
-    if nonce_bytes.len() != NONCE_LEN {
-        bail!("invalid nonce length");
-    }
-
-    let mut key_bytes = [0u8; 32];
-    pbkdf2_hmac::<Sha256>(password.as_bytes(), &salt, PBKDF2_ITERS, &mut key_bytes);
-
-    let cipher = Aes256Gcm::new_from_slice(&key_bytes).context("init cipher")?;
-    let nonce = Nonce::from_slice(&nonce_bytes);
-
-    let plaintext_bytes = cipher
-        .decrypt(nonce, ciphertext.as_ref())
-        .map_err(|_| anyhow::anyhow!("decrypt failed (wrong password or corrupted file)"))?;
-
-    key_bytes.zeroize();
-
-    let plaintext = String::from_utf8(plaintext_bytes).context("decrypted data is not UTF-8")?;
-    Ok(plaintext)
+/// Decrypt an ASCII-armored (or binary) PGP message.
+pub fn decrypt_text(ciphertext: &str, homedir: Option<&Path>) -> Result<String> {
+    let out = run_gpg(ciphertext.as_bytes(), &["--decrypt"], homedir).context("gpg decrypt")?;
+    String::from_utf8(out).context("decrypted output is not UTF-8")
 }
