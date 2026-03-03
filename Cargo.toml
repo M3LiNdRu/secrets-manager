@@ -1,6 +1,6 @@
 [package]
 name = "secrets-manager"
-version = "0.1.0"
+version = "1.1.0"
 edition = "2021"
 description = "Minimal encrypted secrets manager CLI (GPG-backed)"
 
