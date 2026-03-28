@@ -1,11 +1,33 @@
 use anyhow::{bail, Context, Result};
+use std::io::IsTerminal;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
 fn run_gpg(input: &[u8], args: &[&str], homedir: Option<&Path>) -> Result<Vec<u8>> {
+    let interactive = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+
     let mut cmd = Command::new("gpg");
-    cmd.args(["--batch", "--yes", "--no-tty", "--pinentry-mode", "loopback"]);
+
+    // In interactive mode, allow gpg-agent to launch pinentry (GUI/curses) if needed.
+    // In non-interactive mode (CI, pipes), avoid hanging on prompts.
+    if interactive {
+        cmd.arg("--yes");
+
+        // Help pinentry-curses and similar tools find the controlling TTY.
+        if std::env::var_os("GPG_TTY").is_none() {
+            if let Ok(out) = Command::new("tty").output() {
+                if out.status.success() {
+                    let tty = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if !tty.is_empty() {
+                        cmd.env("GPG_TTY", tty);
+                    }
+                }
+            }
+        }
+    } else {
+        cmd.args(["--batch", "--yes", "--no-tty"]);
+    }
 
     if let Some(home) = homedir {
         cmd.arg("--homedir").arg(home);

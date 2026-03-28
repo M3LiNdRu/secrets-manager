@@ -84,6 +84,19 @@ This Rust implementation uses your local `gpg` keyring:
 - Choose the encrypted file via `--file <path>` or `SECRETS_MANAGER_FILE` (defaults to `./secrets.enc`).
 - Optionally set `--gnupghome <path>` (or `SECRETS_MANAGER_GNUPGHOME` / `GNUPGHOME`) to use a non-default keyring.
 
+### First-run configuration
+
+If `SECRETS_MANAGER_GPG_RECIPIENT` / `--recipient` (for `add`) and/or `SECRETS_MANAGER_FILE` / `--file` are not set, the CLI will prompt you on first run and persist defaults to:
+
+```text
+$HOME/.secrets-manager/config.toml
+```
+
+Notes:
+
+- CLI flags and environment variables take precedence over the config file.
+- On Linux/Unix, the config directory is enforced as `0700` and the config file as `0600`.
+
 Examples:
 
 ```bash
