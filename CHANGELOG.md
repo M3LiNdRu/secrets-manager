@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/M3LiNdRu/secrets-manager/compare/v1.1.0...v1.2.0) (2026-04-04)
+
+### Features
+
+* create config file with default values ([b9119e4](https://github.com/M3LiNdRu/secrets-manager/commit/b9119e4bc0d1fd83257eb59b5da7783cde1b21a3))
+
 ## [1.1.0](https://github.com/M3LiNdRu/secrets-manager/compare/v1.0.0...v1.1.0) (2026-03-03)
 
 ### Features
