@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/M3LiNdRu/secrets-manager/compare/v1.2.0...v1.3.0) (2026-04-04)
+
+### Features
+
+* allow key/values with : ([80bf49c](https://github.com/M3LiNdRu/secrets-manager/commit/80bf49c2d43ad3994f6df58fcf514e1638b8abb3))
+
 ## [1.2.0](https://github.com/M3LiNdRu/secrets-manager/compare/v1.1.0...v1.2.0) (2026-04-04)
 
 ### Features
