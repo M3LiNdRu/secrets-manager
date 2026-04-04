@@ -37,8 +37,8 @@ fn validate_key(key: &str) -> Result<()> {
     if key.is_empty() {
         bail!("key must not be empty");
     }
-    if key.contains(':') {
-        bail!("key must not contain ':'");
+    if key.contains('\n') {
+        bail!("key must not contain newlines");
     }
     Ok(())
 }
@@ -48,8 +48,8 @@ fn validate_key_value(key: &str, value: &str) -> Result<()> {
     if value.is_empty() {
         bail!("value must not be empty");
     }
-    if value.contains(':') {
-        bail!("value must not contain ':'");
+    if value.contains('\n') {
+        bail!("value must not contain newlines");
     }
     Ok(())
 }
@@ -133,5 +133,22 @@ mod tests {
 
         let value = manager.get("api_key").unwrap();
         assert_eq!(value.as_deref(), Some("def456"));
+    }
+
+    #[test]
+    fn add_then_get_with_colon_in_key_and_value() {
+        let (gpg_home, recipient) = setup_test_gpg_home();
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("secrets.txt");
+
+        let store = FileSecretsStore::new(path)
+            .with_gnupghome(gpg_home.path().to_path_buf())
+            .with_recipient(recipient);
+        let manager = SecretsManager::new(store);
+
+        // Both key and value contain colons
+        manager.add("host:port", "localhost:8080").unwrap();
+        let value = manager.get("host:port").unwrap();
+        assert_eq!(value.as_deref(), Some("localhost:8080"));
     }
 }

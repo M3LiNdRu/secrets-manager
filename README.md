@@ -25,11 +25,17 @@ db_password:s3cr3t:2026-02-24T10:15:30Z
 api_key:abc123:2026-02-24T10:20:00Z
 ```
 
+If a key or value contains `:`, both are automatically base64-encoded (prefixed with `b64:`):
+
+```text
+b64:aW5qZWN0ZWQ6a2V5:dmFsdWU6d2l0aHRlc3Q=:2026-02-24T10:20:00Z
+```
+
 Notes:
 
-- `key` should not contain `:`.
-- `value` should not contain `:` (or it must be encoded/escaped by the implementation).
-- `timestamp` will be written by the application when adding/updating entries.
+- `key` and `value` can now contain `:` (they'll be base64-encoded automatically).
+- Neither can contain newlines (they would break the line-based format).
+- `timestamp` is always plain text in RFC3339 format.
 
 ## CLI operations
 
