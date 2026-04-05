@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use chrono::SecondsFormat;
 use clap::{Parser, Subcommand};
 
 use secrets_manager::{FileSecretsStore, SecretsManager};
@@ -36,6 +37,14 @@ enum Command {
     Add { key: String, value: String },
     /// Retrieve a secret value by key
     Get { key: String },
+    /// List all stored keys, optionally filtered by pattern
+    List {
+        /// Optional pattern to filter keys (case-insensitive substring match)
+        pattern: Option<String>,
+        /// Show timestamps for each key
+        #[arg(long)]
+        with_timestamps: bool,
+    },
 }
 
 fn main() {
@@ -72,7 +81,7 @@ fn run() -> Result<i32> {
 
     // Prompt for missing defaults on first run.
     let needs_recipient = matches!(cli.command, Command::Add { .. });
-    let needs_file = true;
+    let needs_file = !matches!(cli.command, Command::List { .. });
 
     if (needs_file && file.is_none()) || (needs_recipient && recipient.is_none()) {
         cfg.file = file.as_ref().map(|p| p.to_string_lossy().to_string());
@@ -120,6 +129,34 @@ fn run() -> Result<i32> {
                 }
                 None => Ok(1),
             }
+        }
+        Command::List {
+            pattern,
+            with_timestamps,
+        } => {
+            let mut store = FileSecretsStore::new(file);
+            if let Some(home) = gnupghome {
+                store = store.with_gnupghome(home);
+            }
+            let manager = SecretsManager::new(store);
+
+            let keys = manager.list(pattern.as_deref())?;
+            if keys.is_empty() {
+                return Ok(0);
+            }
+
+            for (key, timestamp) in keys {
+                if with_timestamps {
+                    println!(
+                        "{} {}",
+                        key,
+                        timestamp.to_rfc3339_opts(SecondsFormat::Secs, true)
+                    );
+                } else {
+                    println!("{}", key);
+                }
+            }
+            Ok(0)
         }
     }
 }

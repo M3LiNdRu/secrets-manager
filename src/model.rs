@@ -57,6 +57,20 @@ impl Secrets {
             .collect()
     }
 
+    pub fn list_keys(&self, pattern: Option<&str>) -> Vec<(String, DateTime<Utc>)> {
+        self.entries
+            .values()
+            .filter(|entry| {
+                if let Some(pat) = pattern {
+                    entry.key.to_lowercase().contains(&pat.to_lowercase())
+                } else {
+                    true
+                }
+            })
+            .map(|entry| (entry.key.clone(), entry.timestamp))
+            .collect()
+    }
+
     pub fn from_lines(lines: impl IntoIterator<Item = String>) -> anyhow::Result<Self> {
         use base64::engine::Engine;
 

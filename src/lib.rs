@@ -31,6 +31,14 @@ impl<S: SecretsStore> SecretsManager<S> {
         let secrets = self.store.load().context("load secrets")?;
         Ok(secrets.get(key).map(|e| e.value.clone()))
     }
+
+    pub fn list(
+        &self,
+        pattern: Option<&str>,
+    ) -> Result<Vec<(String, chrono::DateTime<chrono::Utc>)>> {
+        let secrets = self.store.load().context("load secrets")?;
+        Ok(secrets.list_keys(pattern))
+    }
 }
 
 fn validate_key(key: &str) -> Result<()> {
