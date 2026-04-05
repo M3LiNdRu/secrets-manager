@@ -1,3 +1,9 @@
+## [1.4.0](https://github.com/M3LiNdRu/secrets-manager/compare/v1.3.0...v1.4.0) (2026-04-05)
+
+### Features
+
+* list available keys optionally with their timestamp ([1d1e004](https://github.com/M3LiNdRu/secrets-manager/commit/1d1e004ca646c8206c4415c430844229112ac9c3))
+
 ## [1.3.0](https://github.com/M3LiNdRu/secrets-manager/compare/v1.2.0...v1.3.0) (2026-04-04)
 
 ### Features
