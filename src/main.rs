@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use chrono::SecondsFormat;
 use clap::{Parser, Subcommand};
+use rpassword::prompt_password;
 
 use secrets_manager::{FileSecretsStore, SecretsManager};
 
@@ -34,7 +35,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Store or update a key/value secret
-    Add { key: String, value: String },
+    Add { key: String },
     /// Retrieve a secret value by key
     Get { key: String },
     /// List all stored keys, optionally filtered by pattern
@@ -99,7 +100,21 @@ fn run() -> Result<i32> {
     let file = file.unwrap_or_else(|| std::path::PathBuf::from("secrets.enc"));
 
     match cli.command {
-        Command::Add { key, value } => {
+        Command::Add { key } => {
+            if !config::is_interactive() {
+                bail!("add requires an interactive terminal to prompt for the secret value");
+            }
+
+            let value = prompt_password(format!("Value for '{key}': "))?;
+            if value.is_empty() {
+                bail!("value must not be empty");
+            }
+
+            let confirm = prompt_password(format!("Confirm value for '{key}': "))?;
+            if value != confirm {
+                bail!("values do not match");
+            }
+
             let Some(recipient) = recipient else {
                 bail!(
                     "missing GPG recipient; provide --recipient or set SECRETS_MANAGER_GPG_RECIPIENT"

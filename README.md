@@ -13,8 +13,9 @@ Where `timestamp` is the last time the `key:value` entry was updated.
 ### Goals
 
 - Keep the implementation simple: one encrypted file, line-based records.
-- Provide only two operations: add and get.
+- Provide only three operations: add, get, and list.
 - Make it easy to version-control the tool itself while keeping secrets encrypted at rest.
+- Prevent secrets from appearing in shell history or terminal output.
 
 ## Data format
 
@@ -39,22 +40,28 @@ Notes:
 
 ## CLI operations
 
-The application supports two commands:
+The application supports three commands:
 
-### `add <key> <value>`
+### `add <key>`
 
-Stores a new key/value secret.
+Stores a new key/value secret interactively.
 
 Behavior:
 
-- If `key` does not exist, create a new entry.
-- If `key` already exists, update its `value` and `timestamp`.
+- Prompts for the secret value with no terminal echo (secure input).
+- Asks for confirmation to prevent typos.
+- If `key` does not exist, creates a new entry.
+- If `key` already exists, updates its `value` and `timestamp`.
 
 Example:
 
 ```bash
-secrets-manager add db_password s3cr3t
+$ secrets-manager add db_password
+Value for 'db_password': 
+Confirm value for 'db_password': 
 ```
+
+The value is never displayed on screen and never stored in shell history.
 
 ### `get <key>`
 
@@ -70,6 +77,24 @@ Expected output (example):
 
 ```text
 s3cr3t
+```
+
+### `list [pattern] [--with-timestamps]`
+
+Lists all stored keys, optionally filtered by pattern.
+
+Options:
+
+- `pattern` (optional): Case-insensitive substring filter.
+- `--with-timestamps`: Show the timestamp each key was last updated.
+
+Examples:
+
+```bash
+secrets-manager list                              # List all keys
+secrets-manager list db                           # List keys containing "db"
+secrets-manager list --with-timestamps            # List all keys with timestamps
+secrets-manager list api --with-timestamps        # List matching keys with timestamps
 ```
 
 ## Encryption
@@ -108,15 +133,27 @@ Examples:
 ```bash
 export SECRETS_MANAGER_GPG_RECIPIENT='you@example.com'
 
-cargo run -- add db_password s3cr3t
+cargo run -- add db_password
+# (prompts for value securely, then asks for confirmation)
 cargo run -- get db_password
+cargo run -- list --with-timestamps
 ```
 
 ## Error handling (expected)
 
-- `get <key>` returns a non-zero exit code if the key is not found.
-- `add <key> <value>` returns a non-zero exit code on invalid input (e.g., missing args) or encryption/decryption failures.
+- `get <key>` returns exit code 1 if the key is not found, 0 on success.
+- `add <key>` returns a non-zero exit code on:
+  - Non-interactive terminal (e.g., piped input in CI)
+  - Empty value provided
+  - Confirmation values don't match
+  - Missing GPG recipient
+  - Encryption/decryption failures
+- `list [pattern]` returns 0 on success (empty result is not an error).
 
-## Project status
+## Security Features
 
-This repository currently contains the project documentation and will be extended with the actual implementation (CLI + encryption + storage parsing).
+- **No plaintext in terminal**: Secret values are never echoed or displayed on screen during `add`.
+- **No shell history leakage**: Values are prompted interactively, not passed as CLI arguments.
+- **Confirmation prompt**: Prevents typos in critical secrets by asking you to confirm.
+- **GPG encryption**: Secrets are encrypted at rest using your local GnuPG keyring.
+- **Secure config storage**: Configuration file permissions enforced to 0600 (owner read/write only).
