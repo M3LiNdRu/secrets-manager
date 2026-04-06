@@ -1,3 +1,9 @@
+## [1.5.0](https://github.com/M3LiNdRu/secrets-manager/compare/v1.4.0...v1.5.0) (2026-04-06)
+
+### Features
+
+* prompt secret value safely ([024804d](https://github.com/M3LiNdRu/secrets-manager/commit/024804d75a93f89da1c527f5fa6bf1aa97066fef))
+
 ## [1.4.0](https://github.com/M3LiNdRu/secrets-manager/compare/v1.3.0...v1.4.0) (2026-04-05)
 
 ### Features
